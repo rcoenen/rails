@@ -302,8 +302,7 @@ action_mailbox:
 Alternatively, provide the password in the `RAILS_INBOUND_EMAIL_PASSWORD`
 environment variable.
 
-[Configure SendGrid Inbound
-Parse](https://sendgrid.com/docs/for-developers/parsing-email/setting-up-the-inbound-parse-webhook/)
+[Configure SendGrid Inbound Parse](https://sendgrid.com/docs/for-developers/parsing-email/setting-up-the-inbound-parse-webhook/)
 to forward inbound emails to `/rails/action_mailbox/sendgrid/inbound_emails`
 with the username `actionmailbox` and the password you previously generated. If
 your application lived at `https://example.com`, you would configure SendGrid
@@ -316,6 +315,43 @@ https://actionmailbox:PASSWORD@example.com/rails/action_mailbox/sendgrid/inbound
 NOTE: When configuring your SendGrid Inbound Parse webhook, be sure to check the
 box labeled **“Post the raw, full MIME message.”** Action Mailbox needs the raw
 MIME message to work.
+
+### Resend
+
+Tell Action Mailbox to accept emails from Resend:
+
+```ruby
+# config/environments/production.rb
+config.action_mailbox.ingress = :resend
+```
+
+Give Action Mailbox your Resend webhook signing secret so it can authenticate
+requests to the Resend ingress.
+
+Use `bin/rails credentials:edit` to add your secret to your application's
+encrypted credentials under `action_mailbox.resend_signing_secret`, where
+Action Mailbox will automatically find it:
+
+```yaml
+action_mailbox:
+  resend_signing_secret: ...
+```
+
+Alternatively, provide your secret in the `RESEND_INGRESS_SIGNING_SECRET`
+environment variable.
+
+Configure Resend to forward inbound webhooks to
+`/rails/action_mailbox/resend/inbound_emails` using your webhook signing secret.
+If your application lived at `https://example.com`, you would specify the
+fully-qualified URL:
+
+```
+https://example.com/rails/action_mailbox/resend/inbound_emails
+```
+
+Resend signs webhook requests using Svix headers (`Svix-Id`,
+`Svix-Timestamp`, `Svix-Signature`). Action Mailbox validates these signatures
+and rejects invalid or stale requests before processing the inbound email.
 
 ## Processing Incoming Email
 

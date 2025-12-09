@@ -1,0 +1,13 @@
+.env
+/log/*
+/tmp/*
+/storage/*
+/public/assets
+/db/*.sqlite3
+/db/*.sqlite3-*
+!/log/.keep
+!/tmp/.keep
+!/storage/.keep
+.ruby-version
+config/master.key
+config/credentials.yml.enc

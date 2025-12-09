@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Resend Demo Inbox</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+  </head>
+  <body>
+    <h1>Resend Demo Inbox</h1>
+    <p>Listening on <code><%= Rails.application.routes.default_url_options[:host] %></code> for Resend webhooks.</p>
+    <p>Route target: <code><%= ENV.fetch("RESEND_DEMO_TO", "mail@support.migrately.nl") %></code></p>
+
+    <% if @messages.any? %>
+      <ul>
+        <% @messages.each do |message| %>
+          <li>
+            <strong><%= message.subject.presence || "(no subject)" %></strong><br>
+            From: <%= message.from %><br>
+            To: <%= message.to %><br>
+            Received: <%= message.created_at %><br>
+            <pre><%= message.body %></pre>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p>No messages yet.</p>
+    <% end %>
+  </body>
+</html>

@@ -1,0 +1,82 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "base64"
+require "json"
+require "net/http"
+require "openssl"
+require "optparse"
+require "securerandom"
+require "time"
+require "uri"
+
+options = {
+  url: ENV.fetch("HOST_URL", "http://localhost:3000"),
+  to: ENV.fetch("RESEND_DEMO_TO", "mail@support.migrately.nl"),
+  secret: ENV["RESEND_INGRESS_SIGNING_SECRET"]
+}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: bin/post_resend_webhook --url https://your-tunnel.loca.lt --to mailbox@example.com [--file path/to/email.eml]"
+
+  opts.on("--url URL", "Base URL where the demo server is reachable (e.g., tunnel URL)") { |v| options[:url] = v }
+  opts.on("--to EMAIL", "Recipient address to include in the payload") { |v| options[:to] = v }
+  opts.on("--file PATH", "Optional path to a raw .eml file to send") { |v| options[:file] = v }
+  opts.on("--secret SECRET", "Resend webhook signing secret (overrides RESEND_INGRESS_SIGNING_SECRET)") { |v| options[:secret] = v }
+end.parse!
+
+unless options[:secret]
+  warn "Missing RESEND_INGRESS_SIGNING_SECRET; pass --secret or export the env var."
+  exit 1
+end
+
+raw_email = if options[:file]
+  File.binread(options[:file])
+else
+  <<~EMAIL
+    From: Demo Sender <sender@example.com>
+    To: #{options[:to]}
+    Subject: Hello from Resend demo
+    Message-ID: <demo-#{SecureRandom.hex(6)}@example.com>
+    MIME-Version: 1.0
+    Content-Type: text/plain; charset=UTF-8
+
+    This is a sample inbound email sent through the Resend demo webhook.
+  EMAIL
+end
+
+payload_hash = {
+  data: {
+    email: {
+      raw: Base64.strict_encode64(raw_email),
+      to: [options[:to]]
+    }
+  }
+}
+payload = JSON.generate(payload_hash)
+
+uri = URI.parse(options[:url])
+uri.path = "/rails/action_mailbox/resend/inbound_emails"
+
+id = "evt_#{SecureRandom.hex(8)}"
+timestamp = Time.now.to_i
+key = Base64.decode64(options[:secret].sub(/\Awhsec_/, ""))
+signed_payload = [id, timestamp, payload].join(".")
+signature = Base64.strict_encode64(OpenSSL::HMAC.digest("sha256", key, signed_payload))
+
+headers = {
+  "Content-Type" => "application/json",
+  "Svix-Id" => id,
+  "Svix-Timestamp" => timestamp.to_s,
+  "Svix-Signature" => "v1,#{signature}"
+}
+
+http = Net::HTTP.new(uri.host, uri.port)
+http.use_ssl = uri.scheme == "https"
+request = Net::HTTP::Post.new(uri.request_uri, headers)
+request.body = payload
+
+response = http.request(request)
+
+puts "POST #{uri} -> #{response.code}"
+puts response.body if response.body && !response.body.empty?
